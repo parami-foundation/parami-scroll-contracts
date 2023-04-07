@@ -13,6 +13,7 @@ contract AuctionAndMicroPayment {
     }
 
     struct Bid {
+        uint256 bidId;
         uint256 amount;
         address bidder;
         address tokenContract;
@@ -27,34 +28,32 @@ contract AuctionAndMicroPayment {
     address public owner;
 
     event HighestBidIncreased(uint256 hNFTId, Bid bid);
-    event RefundPreviousBidIncreased(uint256 hNFTId, address tokenAddress, address refunder, uint256 amount);
-    event PayOutIncreased(uint256 hNFTId, address payoutAddress, uint256 amount);
+    event RefundPreviousBidIncreased(uint256 bidId, uint256 hNFTId, address tokenAddress, address refunder, uint256 amount);
+    event PayOutIncreased(uint256 bidId, uint256 hNFTId, address payoutAddress, uint256 amount);
 
     function bid(uint256 hNFTId, address hNFTContractAddr, address tokenContractAddr,
-                 uint256 fragmentAmout, string calldata slotUri) public {
+                 uint256 fragmentAmout, string calldata slotUri) public returns (uint256) {
         require(fragmentAmout > 0, "Bid amount must be greater than 0.");
         require(hNFTContractAddr != address(0) && tokenContractAddr != address(0), "The hnft and token contract can not be address(0).");
 
         uint256 bidAmount = highestBid[hNFTId].amount;
         if (bidAmount == 0) {
-            bidSuccess(hNFTId, fragmentAmout, slotUri, false, hNFTContractAddr, tokenContractAddr);
+            return bidSuccess(hNFTId, fragmentAmout, slotUri, false, hNFTContractAddr, tokenContractAddr);
         } else {
             require(checkLarger(fragmentAmout ,bidAmount), "The current bidding price is too low.");
-            bidSuccess(hNFTId, fragmentAmout, slotUri, true, hNFTContractAddr, tokenContractAddr);
+            return bidSuccess(hNFTId, fragmentAmout, slotUri, true, hNFTContractAddr, tokenContractAddr);
         }
     }
 
     function bidSuccess(uint256 hNFTId, uint256 fragmentAmout, 
                         string calldata slotUri, bool needFund, 
-                        address hNFTContractAddr, address tokenContractAddr) private {
+                        address hNFTContractAddr, address tokenContractAddr) private returns (uint256 randomNum) {
         nft = IERC5489(hNFTContractAddr);
         if (needFund) {
-            // memory or storage ?
             Bid memory previousBid = highestBid[hNFTId];
             token = IERC20(previousBid.tokenContract);
             token.transfer(previousBid.bidder, previousBid.amount);
-            // nft.revokeAuthorization(hNFTId, previousBid.bidder);
-            emit RefundPreviousBidIncreased(hNFTId, previousBid.tokenContract, previousBid.bidder, previousBid.amount);
+            emit RefundPreviousBidIncreased(previousBid.bidId, hNFTId, previousBid.tokenContract, previousBid.bidder, previousBid.amount);
         }
  
         token = IERC20(tokenContractAddr);
@@ -62,16 +61,16 @@ contract AuctionAndMicroPayment {
         require(tokenAllowance >= fragmentAmout, "Insufficient token balance.");
         token.transferFrom(msg.sender, address(this), fragmentAmout);
 
-        // nft.authorizeSlotTo(hNFTId, msg.sender);
         nft.setSlotUri(hNFTId, slotUri);
-        highestBid[hNFTId] = Bid(fragmentAmout, msg.sender, tokenContractAddr, slotUri);
+        randomNum = generateRandomNumber();
+        highestBid[hNFTId] = Bid(randomNum, fragmentAmout, msg.sender, tokenContractAddr, slotUri);
         
         emit HighestBidIncreased(hNFTId, highestBid[hNFTId]);
     }
 
-    function payout(uint256 hNFTId, uint256 fragmentAmount) public {
-        // TODO 添加广告主验签操作
+    function payout(uint256 bidId, uint256 hNFTId, uint256 fragmentAmount) public {
         Bid memory payOutBid = highestBid[hNFTId];
+        require(payOutBid.bidId == bidId, "The bidId is not match.");
         require(fragmentAmount <= payOutBid.amount, "The advertising sponsor is credit balance is insufficient.");
 
         payOutBid.amount = payOutBid.amount.sub(fragmentAmount);
@@ -79,11 +78,27 @@ contract AuctionAndMicroPayment {
         highestBid[hNFTId] = payOutBid;
         token.transfer(msg.sender, fragmentAmount);
 
-        emit PayOutIncreased(hNFTId, msg.sender, fragmentAmount);
+        emit PayOutIncreased(payOutBid.bidId, hNFTId, msg.sender, fragmentAmount);
+    }
+
+    function batchPayout() {
+        // TODO
+
+    }
+
+    function getSlotBalance(uint256 hNFTId) public view returns(uint256) {
+        return highestBid[hNFTId].amount;
     }
 
     function checkLarger(uint256 a, uint256 b) public pure returns(bool) {
         uint256 bPlusDiff = b.add(b.mul(2).div(10));
         return a >= bPlusDiff;
+    }
+
+    function generateRandomNumber() private view returns (uint256) {
+        bytes32 blockHash = blockhash(block.number);
+        bytes memory concatData = abi.encodePacked(blockHash, block.timestamp, block.coinbase);
+        bytes32 hash = keccak256(concatData);
+        return uint256(hash);
     }
 }
