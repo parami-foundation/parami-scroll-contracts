@@ -1,12 +1,14 @@
+import { Address } from 'solidity-typescript-template';
+
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("Auction", function () {
-    let hnft: any;
-    let ad3: any;
-    let auction: any;
-    let owner: any;
-    let user: any;
+    let hnft: Address;
+    let ad3: Address;
+    let auction: Address;
+    let owner: Address;
+    let user: Address;
 
     beforeEach(async () => {
         [owner, user] = await ethers.getSigners();

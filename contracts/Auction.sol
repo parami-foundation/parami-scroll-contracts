@@ -69,6 +69,16 @@ contract AuctionAndMicroPayment {
     }
 
     function payout(uint256 bidId, uint256 hNFTId, uint256 fragmentAmount) public {
+        _payout(bidId, hNFTId, fragmentAmount, msg.sender);
+    }
+
+    function batchPayout(uint256 bidId, uint256 hNFTId, uint256[] memory fragmentAmounts, address[] memory userAddresses) public {
+        for (uint i = 0; i < userAddresses.length; i++) {
+            _payout(bidId, hNFTId, fragmentAmounts[i], userAddresses[i]);
+        }
+    }
+
+    function _payout(uint256 bidId, uint256 hNFTId, uint256 fragmentAmount, address userAddress) private {
         Bid memory payOutBid = highestBid[hNFTId];
         require(payOutBid.bidId == bidId, "The bidId is not match.");
         require(fragmentAmount <= payOutBid.amount, "The advertising sponsor is credit balance is insufficient.");
@@ -76,14 +86,9 @@ contract AuctionAndMicroPayment {
         payOutBid.amount = payOutBid.amount.sub(fragmentAmount);
         token = IERC20(payOutBid.tokenContract);
         highestBid[hNFTId] = payOutBid;
-        token.transfer(msg.sender, fragmentAmount);
+        token.transfer(userAddress, fragmentAmount);
 
-        emit PayOutIncreased(payOutBid.bidId, hNFTId, msg.sender, fragmentAmount);
-    }
-
-    function batchPayout() {
-        // TODO
-
+        emit PayOutIncreased(payOutBid.bidId, hNFTId, userAddress, fragmentAmount);
     }
 
     function getSlotBalance(uint256 hNFTId) public view returns(uint256) {
