@@ -2,11 +2,11 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("Auction", function () {
-    let hnft;
-    let ad3;
-    let auction;
-    let owner;
-    let user;
+    let hnft: any;
+    let ad3: any;
+    let auction: any;
+    let owner: any;
+    let user: any;
 
     beforeEach(async () => {
         [owner, user] = await ethers.getSigners();
